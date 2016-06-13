@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:form_input/data/storage/local_storage.dart';
+import '../../../data/storage/firestore_service.dart';
+import '../../../models/mahasiswa_model.dart';
 import 'detail_mahasiswa_page.dart';
-import 'package:another_flushbar/flushbar.dart';
 
 class DataListPage extends StatefulWidget {
   const DataListPage({super.key});
@@ -11,62 +11,66 @@ class DataListPage extends StatefulWidget {
 }
 
 class _DataListPageState extends State<DataListPage> {
-  List<Map<String, String>> mahasiswaList = [];
-  List<String> selectedNpmList = [];
+  List<Mahasiswa> mahasiswaList = [];
+  List<int> selectedIndexes = [];
+  final FirestoreService _firestoreService = FirestoreService();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadSavedData();
   }
 
-  Future<void> _loadData() async {
-    final list = await LocalStorage.loadDataList();
+  Future<void> _loadSavedData() async {
+    final list = await _firestoreService.getMahasiswaFuture();
     setState(() {
       mahasiswaList = list.reversed.toList();
     });
   }
 
-  void _toggleSelection(String npm) {
+  Future<void> _deleteSelected() async {
+    if (selectedIndexes.isEmpty) return;
+
+    final selectedNPMs =
+        selectedIndexes.map((index) => mahasiswaList[index].npm).toList();
+
+    for (var npm in selectedNPMs) {
+      await _firestoreService.deleteMahasiswaByNpm(npm);
+    }
+
     setState(() {
-      if (selectedNpmList.contains(npm)) {
-        selectedNpmList.remove(npm);
+      selectedIndexes.clear();
+    });
+
+    await _loadSavedData();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Data terpilih berhasil dihapus!'),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(top: 20, left: 12, right: 12),
+      ),
+    );
+  }
+
+  void _toggleSelection(int index) {
+    setState(() {
+      if (selectedIndexes.contains(index)) {
+        selectedIndexes.remove(index);
       } else {
-        selectedNpmList.add(npm);
+        selectedIndexes.add(index);
       }
     });
-  }
-
-  Future<void> _deleteSelected() async {
-    if (selectedNpmList.isEmpty) return;
-
-    await LocalStorage.deleteByNpmList(selectedNpmList);
-    selectedNpmList.clear();
-    await _loadData();
-
-    _showFlushbar("Data terpilih berhasil dihapus!", Colors.redAccent);
-  }
-
-  void _showFlushbar(String message, Color color) {
-    Flushbar(
-      message: message,
-      backgroundColor: color,
-      margin: const EdgeInsets.all(12),
-      borderRadius: BorderRadius.circular(12),
-      duration: const Duration(seconds: 2),
-      flushbarPosition: FlushbarPosition.TOP,
-      icon: const Icon(Icons.info_outline, color: Colors.black87),
-      messageColor: Colors.black,
-    ).show(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Data Mahasiswa'),
+        title: const Text('Daftar Mahasiswa'),
         actions: [
-          if (selectedNpmList.isNotEmpty)
+          if (selectedIndexes.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_forever),
               onPressed: _deleteSelected,
@@ -74,31 +78,34 @@ class _DataListPageState extends State<DataListPage> {
         ],
       ),
       body: mahasiswaList.isEmpty
-          ? const Center(child: Text('Belum ada data'))
+          ? const Center(
+              child: Text(
+                "Belum ada data tersimpan.",
+                style: TextStyle(fontSize: 16),
+              ),
+            )
           : ListView.builder(
+              padding: const EdgeInsets.all(16),
               itemCount: mahasiswaList.length,
               itemBuilder: (context, index) {
                 final mhs = mahasiswaList[index];
-                final selected = selectedNpmList.contains(mhs['npm']);
+                final selected = selectedIndexes.contains(index);
 
                 return GestureDetector(
-                  onLongPress: () => _toggleSelection(mhs['npm']!),
-                  onTap: () {
-                    if (selectedNpmList.isNotEmpty) {
-                      _toggleSelection(mhs['npm']!);
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DetailMahasiswaPage(data: mhs),
-                        ),
-                      );
-                    }
+                  onLongPress: () => _toggleSelection(index),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DetailMahasiswaPage(mahasiswa: mhs),
+                      ),
+                    );
+                    _loadSavedData();
                   },
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    duration: const Duration(milliseconds: 300),
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: selected
                           ? Colors.indigoAccent.withOpacity(0.4)
@@ -110,15 +117,23 @@ class _DataListPageState extends State<DataListPage> {
                         width: 1.5,
                       ),
                     ),
-                    child: ListTile(
-                      title: Text(mhs['nama'] ?? '',
-                          style: const TextStyle(color: Colors.white)),
-                      subtitle: Text(
-                        "NPM: ${mhs['npm']}\nProdi: ${mhs['prodi']}",
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      trailing: const Icon(Icons.chevron_right,
-                          color: Colors.white70),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Nama: ${mhs.nama}',
+                                style: const TextStyle(fontSize: 16)),
+                            Text('NPM: ${mhs.npm}',
+                                style: const TextStyle(fontSize: 16)),
+                            Text('Prodi: ${mhs.prodi}',
+                                style: const TextStyle(fontSize: 16)),
+                          ],
+                        ),
+                        const Icon(Icons.chevron_right_rounded,
+                            color: Colors.amberAccent, size: 32),
+                      ],
                     ),
                   ),
                 );

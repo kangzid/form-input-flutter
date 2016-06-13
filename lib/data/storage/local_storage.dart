@@ -1,58 +1,54 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../models/mahasiswa_model.dart';
 
 class LocalStorage {
-  static const String _key = 'mahasiswa_data';
+  static const String keyMahasiswa = 'dataMahasiswa';
 
-  /// Simpan data baru ke daftar mahasiswa
-  static Future<void> saveDataList(Map<String, String> data) async {
+  // Simpan data mahasiswa (list)
+  static Future<void> saveMahasiswa(List<Mahasiswa> data) async {
     final prefs = await SharedPreferences.getInstance();
+    final encoded = data.map((e) => jsonEncode(e.toMap())).toList();
+    await prefs.setStringList(keyMahasiswa, encoded);
+  }
 
-    // Ambil data lama
-    final existingJson = prefs.getString(_key);
-    List<Map<String, String>> existingList = [];
+  // Ambil data mahasiswa (list)
+  static Future<List<Mahasiswa>> getMahasiswa() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? encodedList = prefs.getStringList(keyMahasiswa);
+    if (encodedList == null) return [];
+    return encodedList.map((e) => Mahasiswa.fromMap(jsonDecode(e))).toList();
+  }
 
-    if (existingJson != null) {
-      final decoded = jsonDecode(existingJson) as List;
-      existingList = decoded.map((e) => Map<String, String>.from(e)).toList();
+  // Tambah satu mahasiswa baru
+  static Future<void> addMahasiswa(Mahasiswa newData) async {
+    final currentData = await getMahasiswa();
+    currentData.add(newData);
+    await saveMahasiswa(currentData);
+  }
+
+  // Hapus berdasarkan NPM
+  static Future<void> deleteMahasiswaByNpm(String npm) async {
+    final currentData = await getMahasiswa();
+    final updatedData = currentData.where((m) => m.npm != npm).toList();
+    await saveMahasiswa(updatedData);
+  }
+
+  // 🔥 Update data mahasiswa berdasarkan NPM lama
+  static Future<void> updateMahasiswa(
+      String oldNpm, Mahasiswa updatedData) async {
+    final currentData = await getMahasiswa();
+    final index = currentData.indexWhere((m) => m.npm == oldNpm);
+
+    if (index != -1) {
+      currentData[index] = updatedData; // Ganti data lama dengan data baru
+      await saveMahasiswa(currentData);
     }
-
-    // Tambahkan data baru
-    existingList.add(data);
-
-    // Simpan ulang
-    await prefs.setString(_key, jsonEncode(existingList));
   }
 
-  /// Ambil semua data mahasiswa
-  static Future<List<Map<String, String>>> loadDataList() async {
-    final prefs = await SharedPreferences.getInstance();
-    final existingJson = prefs.getString(_key);
-
-    if (existingJson == null) return [];
-
-    final decoded = jsonDecode(existingJson) as List;
-    return decoded.map((e) => Map<String, String>.from(e)).toList();
-  }
-
-  /// Hapus data berdasarkan NPM unik
-  static Future<void> deleteByNpmList(List<String> npms) async {
-    final prefs = await SharedPreferences.getInstance();
-    final existingJson = prefs.getString(_key);
-    if (existingJson == null) return;
-
-    final decoded = jsonDecode(existingJson) as List;
-    final list = decoded.map((e) => Map<String, String>.from(e)).toList();
-
-    // Hapus berdasarkan NPM
-    list.removeWhere((item) => npms.contains(item['npm']));
-
-    await prefs.setString(_key, jsonEncode(list));
-  }
-
-  /// Hapus semua data (opsional)
+  // Hapus semua data
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+    await prefs.remove(keyMahasiswa);
   }
 }

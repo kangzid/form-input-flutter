@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:form_input/data/storage/local_storage.dart';
 import 'package:another_flushbar/flushbar.dart';
-import '../widgets/input_field.dart';
-import 'data_list_page.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:lottie/lottie.dart';
+
+import '../../../data/storage/firestore_service.dart';
+import '../../../models/mahasiswa_model.dart';
+import '../widgets/input_field.dart';
+import 'data_list_page.dart';
 
 class FormInputPage extends StatefulWidget {
   const FormInputPage({super.key});
@@ -17,8 +19,9 @@ class _FormInputPageState extends State<FormInputPage> {
   final TextEditingController _namaController = TextEditingController();
   final TextEditingController _npmController = TextEditingController();
   final TextEditingController _prodiController = TextEditingController();
+  final FirestoreService _firestoreService = FirestoreService();
 
-  List<Map<String, String>> mahasiswaList = [];
+  List<Mahasiswa> mahasiswaList = [];
 
   @override
   void initState() {
@@ -27,9 +30,9 @@ class _FormInputPageState extends State<FormInputPage> {
   }
 
   Future<void> _loadSavedData() async {
-    final list = await LocalStorage.loadDataList();
+    final list = await _firestoreService.getMahasiswaFuture();
     setState(() {
-      mahasiswaList = list.reversed.toList(); // biar data terbaru di atas
+      mahasiswaList = list.reversed.toList(); // tampilkan data terbaru di atas
     });
   }
 
@@ -44,17 +47,17 @@ class _FormInputPageState extends State<FormInputPage> {
     }
 
     // Ambil semua data untuk cek duplikat NPM
-    final existingData = await LocalStorage.loadDataList();
-    final npmSudahAda = existingData.any((item) => item['npm'] == npm);
+    final existingData = await _firestoreService.getMahasiswaFuture();
+    final npmSudahAda = existingData.any((item) => item.npm == npm);
 
     if (npmSudahAda) {
       _showDuplicateAlert();
-      return; // stop proses simpan
+      return;
     }
 
-    final data = {'nama': nama, 'npm': npm, 'prodi': prodi};
+    final dataBaru = Mahasiswa(nama: nama, npm: npm, prodi: prodi);
+    await _firestoreService.addMahasiswa(dataBaru);
 
-    await LocalStorage.saveDataList(data);
     _namaController.clear();
     _npmController.clear();
     _prodiController.clear();
@@ -142,9 +145,9 @@ class _FormInputPageState extends State<FormInputPage> {
                   ...latestData.map((mhs) => Card(
                         color: Colors.indigo[900],
                         child: ListTile(
-                          title: Text(mhs['nama'] ?? ''),
-                          subtitle: Text(
-                              "NPM: ${mhs['npm']}\nProdi: ${mhs['prodi']}"),
+                          title: Text(mhs.nama),
+                          subtitle:
+                              Text("NPM: ${mhs.npm}\nProdi: ${mhs.prodi}"),
                         ),
                       )),
                   const SizedBox(height: 10),
@@ -158,7 +161,7 @@ class _FormInputPageState extends State<FormInputPage> {
                           MaterialPageRoute(
                               builder: (_) => const DataListPage()),
                         );
-                        _loadSavedData(); // refresh saat kembali
+                        _loadSavedData(); // refresh data setelah kembali
                       },
                     ),
                   ),
