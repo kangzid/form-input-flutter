@@ -35,8 +35,8 @@ class LocalStorage {
     return decoded.map((e) => Map<String, String>.from(e)).toList();
   }
 
-  /// Hapus data berdasarkan index
-  static Future<void> deleteSelectedData(List<int> selectedIndexes) async {
+  /// Hapus data berdasarkan NPM unik
+  static Future<void> deleteByNpmList(List<String> npms) async {
     final prefs = await SharedPreferences.getInstance();
     final existingJson = prefs.getString(_key);
     if (existingJson == null) return;
@@ -44,13 +44,8 @@ class LocalStorage {
     final decoded = jsonDecode(existingJson) as List;
     final list = decoded.map((e) => Map<String, String>.from(e)).toList();
 
-    // Hapus item terpilih dari belakang agar index tetap valid
-    selectedIndexes.sort((a, b) => b.compareTo(a));
-    for (final index in selectedIndexes) {
-      if (index >= 0 && index < list.length) {
-        list.removeAt(index);
-      }
-    }
+    // Hapus berdasarkan NPM
+    list.removeWhere((item) => npms.contains(item['npm']));
 
     await prefs.setString(_key, jsonEncode(list));
   }

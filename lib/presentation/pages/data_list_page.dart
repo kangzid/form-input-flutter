@@ -12,7 +12,7 @@ class DataListPage extends StatefulWidget {
 
 class _DataListPageState extends State<DataListPage> {
   List<Map<String, String>> mahasiswaList = [];
-  List<int> selectedIndexes = [];
+  List<String> selectedNpmList = [];
 
   @override
   void initState() {
@@ -27,21 +27,21 @@ class _DataListPageState extends State<DataListPage> {
     });
   }
 
-  void _toggleSelection(int index) {
+  void _toggleSelection(String npm) {
     setState(() {
-      if (selectedIndexes.contains(index)) {
-        selectedIndexes.remove(index);
+      if (selectedNpmList.contains(npm)) {
+        selectedNpmList.remove(npm);
       } else {
-        selectedIndexes.add(index);
+        selectedNpmList.add(npm);
       }
     });
   }
 
   Future<void> _deleteSelected() async {
-    if (selectedIndexes.isEmpty) return;
+    if (selectedNpmList.isEmpty) return;
 
-    await LocalStorage.deleteSelectedData(selectedIndexes);
-    selectedIndexes.clear();
+    await LocalStorage.deleteByNpmList(selectedNpmList);
+    selectedNpmList.clear();
     await _loadData();
 
     _showFlushbar("Data terpilih berhasil dihapus!", Colors.redAccent);
@@ -66,7 +66,7 @@ class _DataListPageState extends State<DataListPage> {
       appBar: AppBar(
         title: const Text('Data Mahasiswa'),
         actions: [
-          if (selectedIndexes.isNotEmpty)
+          if (selectedNpmList.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_forever),
               onPressed: _deleteSelected,
@@ -79,12 +79,13 @@ class _DataListPageState extends State<DataListPage> {
               itemCount: mahasiswaList.length,
               itemBuilder: (context, index) {
                 final mhs = mahasiswaList[index];
-                final selected = selectedIndexes.contains(index);
+                final selected = selectedNpmList.contains(mhs['npm']);
+
                 return GestureDetector(
-                  onLongPress: () => _toggleSelection(index),
+                  onLongPress: () => _toggleSelection(mhs['npm']!),
                   onTap: () {
-                    if (selectedIndexes.isNotEmpty) {
-                      _toggleSelection(index);
+                    if (selectedNpmList.isNotEmpty) {
+                      _toggleSelection(mhs['npm']!);
                     } else {
                       Navigator.push(
                         context,
@@ -110,9 +111,12 @@ class _DataListPageState extends State<DataListPage> {
                       ),
                     ),
                     child: ListTile(
-                      title: Text(mhs['nama'] ?? ''),
-                      subtitle:
-                          Text("NPM: ${mhs['npm']}\nProdi: ${mhs['prodi']}"),
+                      title: Text(mhs['nama'] ?? '',
+                          style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        "NPM: ${mhs['npm']}\nProdi: ${mhs['prodi']}",
+                        style: const TextStyle(color: Colors.white70),
+                      ),
                       trailing: const Icon(Icons.chevron_right,
                           color: Colors.white70),
                     ),
